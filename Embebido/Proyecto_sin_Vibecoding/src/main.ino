@@ -1,5 +1,7 @@
-
 #include <Arduino.h>
+#include <WiFi.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 // Defines (ESP32 pin's designations, structs, etc.)
 #include "enums.h"
@@ -12,90 +14,150 @@
 // User functions (utilities for sensors and actuators)
 #include "user_functions.h"
 
+// FreeRTOS tasks
+#include "sync.h"
+#include "tasks.h"
+
+// MQTT integration
+#include "mqtt.h"
+
 // Event capture functions
 #include "event_captures.h"
 
 // Debugging utilities
 #include "debuggers.h"
 
-////////////////////////////////////////////////////
-// TODO: Utilizar FreeRTOS para manejar la melodia del Buzzer.
-struct BuzzerStep {
-    unsigned int frequency;
-    unsigned long duration;
-};
+/**
+ * @brief Main system status variable, representing the current state of the embedded system FSM.
+ */
+SystemStatus systemStatus = VIRGIN_EMBEDDED;
 
-const BuzzerStep BuzzerSteps[] = {
-    { .frequency = 700, .duration = 500 },
-    { .frequency = 560, .duration = 500 },
-    { .frequency = 700, .duration = 500 },
-    { .frequency = 560, .duration = 500 },
-};
+const QueueHandle_t xSystemEventsQueue = xQueueCreate(10, sizeof(unsigned long));
 
-const int BuzzerStepsLength = sizeof(BuzzerSteps) / sizeof(BuzzerSteps[0]);
+static void xSystemEventTask(void* parameters) {
+    const unsigned int eventsLength = 4;
+    const SystemEvent (*events[eventsLength])(SystemStatus status) = {
+        getSecurityBtnEvent,
+        getAnomalySensorEvent,
+        getStockBtnEvent,
+        getStockSensorEvent,
+    };
 
-// 3. Variables de estado (deben ser globales o estáticas)
-int pasoActual = 0;
-unsigned long tiempoAnterior = 0;
-bool alarmaIniciada = false;
+    int i = 0;
+    SystemEvent newEvent;
 
-void playBuzzer() {
-    unsigned long currentTime = millis();
+    const int delay = pdMS_TO_TICKS(150);
 
-    // Arranque inicial
-    if (!alarmaIniciada) {
-        aplicarTono(BuzzerSteps[pasoActual].frequency);
-        tiempoAnterior = currentTime;
-        alarmaIniciada = true;
-    }
+    while (true) {
+        i = i % eventsLength;
+        newEvent = events[i](systemStatus);
 
-    // Comprobar si ya pasó el tiempo del paso actual
-    if (currentTime - tiempoAnterior >= BuzzerSteps[pasoActual].duration) {
-        tiempoAnterior = currentTime;  // Reiniciar el cronómetro
+        xQueueSend(xSystemEventsQueue, &newEvent, 0);
+        vTaskDelay(delay);
 
-        // Avanzar al siguiente paso, volviendo a 0 al terminar
-        pasoActual = (pasoActual + 1) % BuzzerStepsLength;
-
-        aplicarTono(BuzzerSteps[pasoActual].frequency);
+        i++;
     }
 }
 
-void stopBuzzer() {
-    // Solo ejecutamos el apagado y el reinicio si la alarma estaba corriendo
-    if (alarmaIniciada) {
-        noTone(BUZZER_PIN);
-        alarmaIniciada = false;
-        pasoActual = 0;
-        // tiempoAnterior no necesita reinicio porque se sobrescribe al iniciar
+static void xFSMTask(void* parameters) {
+    SystemEvent event;
+    const TickType_t waitTime = portMAX_DELAY;
+
+    while (true) {
+        xQueueReceive(xSystemEventsQueue, &event, waitTime);
+
+        switch (systemStatus) {
+            case SystemStatus::VIRGIN_EMBEDDED:
+                switch (event) {
+                    case SystemEvent::STOCK_ON:
+                        lcdClear(&LCD);
+                        systemStatus = SystemStatus::STOCK_MODE;
+                        DEBUG_FSM(SystemStatus::VIRGIN_EMBEDDED, event, systemStatus);
+                        break;
+
+                    case SystemEvent::SECURITY_ON:
+                        lcdPrint(&LCD, "Security mode");
+                        setBaselineWeight(&weightSensor01);
+                        systemStatus = SystemStatus::SECURITY_MODE;
+                        DEBUG_FSM(SystemStatus::VIRGIN_EMBEDDED, event, systemStatus);
+                        break;
+
+                    default:
+                        lcdPrint(&LCD, "SOA - Team L5", "S.S. control");
+                        DEBUG_FSM(SystemStatus::VIRGIN_EMBEDDED, event, SystemStatus::VIRGIN_EMBEDDED);
+                        break;
+                }
+                break;
+
+            case SystemStatus::STOCK_MODE:
+                switch (event) {
+                    case SystemEvent::STOCK_OFF:
+                        ledOff(&weightSensor01);
+                        lcdClear(&LCD);
+                        systemStatus = SystemStatus::VIRGIN_EMBEDDED;
+                        DEBUG_FSM(SystemStatus::STOCK_MODE, event, systemStatus);
+                        break;
+
+                    case SystemEvent::STOCK_MISSING_SENSOR_01:
+                        ledOn(&weightSensor01);
+                        lcdPrint(&LCD, "Stock missing", "on sensor!");
+                        DEBUG_FSM(SystemStatus::STOCK_MODE, event, systemStatus);
+                        break;
+
+                    case SystemEvent::NO_MISSING_STOCK:
+                        ledOff(&weightSensor01);
+                        lcdPrint(&LCD, "Stock = " + String(getStock(&weightSensor01)), "");
+                        DEBUG_FSM(SystemStatus::STOCK_MODE, event, systemStatus);
+                        break;
+
+                    case SystemEvent::SECURITY_ON:
+                        setBaselineWeight(&weightSensor01);
+                        ledOff(&weightSensor01);
+                        lcdPrint(&LCD, "Security mode");
+                        systemStatus = SystemStatus::SECURITY_MODE;
+                        DEBUG_FSM(SystemStatus::STOCK_MODE, event, systemStatus);
+                        break;
+
+                    default:
+                        break;
+                }
+                break;
+
+            case SystemStatus::SECURITY_MODE:
+                switch (event) {
+                    case SystemEvent::SECURITY_OFF:
+                        stopBuzzer(&buzzer);
+                        ledOff(&weightSensor01);
+                        lcdClear(&LCD);
+                        systemStatus = SystemStatus::VIRGIN_EMBEDDED;
+                        DEBUG_FSM(SystemStatus::SECURITY_MODE, event, systemStatus);
+                        break;
+
+                    case SystemEvent::SECURITY_OFF_TO_STOCK:
+                        stopBuzzer(&buzzer);
+                        ledOff(&weightSensor01);
+                        lcdClear(&LCD);
+                        systemStatus = SystemStatus::STOCK_MODE;
+                        DEBUG_FSM(SystemStatus::SECURITY_MODE, event, systemStatus);
+                        break;
+
+                    case SystemEvent::ANOMALY_SENSOR_01:
+                        ledOn(&weightSensor01);
+                        playBuzzer(&buzzer);
+                        lcdPrint(&LCD, "Security alert", "on all sensors!");
+                        DEBUG_FSM(SystemStatus::SECURITY_MODE, event, systemStatus);
+                        break;
+
+                    default:
+                        DEBUG_FSM(SystemStatus::SECURITY_MODE, event, systemStatus);
+                        break;
+                }
+                break;
+
+            default:
+                break;
+        }
     }
-}
-
-// Función auxiliar para aplicar el tono o silencio
-void aplicarTono(unsigned int freq) {
-    if (freq > 0) {
-        tone(BUZZER_PIN, freq);
-    } else {
-        noTone(BUZZER_PIN);
-    }
-}
-
-////////////////////////////////////////////////////
-
-SystemStatus Status = VIRGIN_EMBEDDED;
-
-SystemEvent (*eventCaptures[])(SystemStatus systemStatus) = {
-    getStockBtnEvent,
-    getStockSensorsEvent,
-    getSecurityBtnEvent,
-    getAnomalySensorsEvent,
-};
-
-int8_t eventCaptureI = -1;
-const size_t eventCapturesLength = sizeof(eventCaptures) / sizeof(eventCaptures[0]);
-
-SystemEvent getSystemEvent() {
-    eventCaptureI = (eventCaptureI + 1) % eventCapturesLength;
-    return eventCaptures[eventCaptureI](Status);
 }
 
 void setup() {
@@ -104,188 +166,87 @@ void setup() {
     DEBUG("\r\nStarting setup...\r\n\n");
 
     // Stock button
-    pinMode(StockBtn.pin, INPUT);
-    pinMode(StockBtn.led, OUTPUT);
-    digitalWrite(StockBtn.led, LOW);
+    pinMode(stockBtn.pin, INPUT);
+    pinMode(stockBtn.ledPin, OUTPUT);
+    digitalWrite(stockBtn.ledPin, LOW);
 
-    StockBtn.state = LOW;
-    StockBtn.status = OFF;
-    StockBtn.lastState = HIGH;
-    StockBtn.lastDebounceTime = 0;
+    stockBtn.state = HIGH;
+    stockBtn.status = ButtonStatus::OFF;
+    stockBtn.lastState = HIGH;
+    stockBtn.lastDebounceTime = 0;
 
-    DEBUG_BUTTON("StockBtn", StockBtn);
+    DEBUG_BUTTON("stockBtn", stockBtn);
     DEBUG("\r\n");
 
     // Security button
-    pinMode(SecurityBtn.pin, INPUT);
-    pinMode(SecurityBtn.led, OUTPUT);
-    digitalWrite(SecurityBtn.led, LOW);
+    pinMode(securityBtn.pin, INPUT);
+    pinMode(securityBtn.ledPin, OUTPUT);
+    digitalWrite(securityBtn.ledPin, LOW);
 
-    SecurityBtn.state = LOW;
-    SecurityBtn.status = OFF;
-    SecurityBtn.lastState = HIGH;
-    SecurityBtn.lastDebounceTime = 0;
+    securityBtn.state = HIGH;
+    securityBtn.status = ButtonStatus::OFF;
+    securityBtn.lastState = HIGH;
+    securityBtn.lastDebounceTime = 0;
 
-    DEBUG_BUTTON("SecurityBtn", SecurityBtn);
+    DEBUG_BUTTON("securityBtn", securityBtn);
     DEBUG("\r\n");
 
     // LCD
-    LCD.device->init();
-    LCD.device->backlight();
+    LCD.device->begin(LCD_COLS, LCD_ROWS);
+    LCD.device->setRGB(255, 255, 255);
 
-    // Buzzer
-    pinMode(BUZZER_PIN, OUTPUT);
+    // Alarm
+    pinMode(buzzer.pin, OUTPUT);
 
-    // Weight sensors
-    WeightSensor01.device.begin(WeightSensor01.dtPin, WeightSensor01.sckPin);
-    WeightSensor01.device.set_scale(WEIGHT_SENSORS_CALIBRATION_FACTOR);
-    WeightSensor01.device.tare();
+    // Weight sensor
+    weightSensor01.device.begin(weightSensor01.dtPin, weightSensor01.sckPin);
+    weightSensor01.device.set_scale(WEIGHT_SENSORS_CALIBRATION_FACTOR);
 
-    pinMode(WeightSensor01.led, OUTPUT);
+    tare(&weightSensor01);
+    pinMode(weightSensor01.ledPin, OUTPUT);
 
-    DEBUG_WEIGHT_SENSOR("WeightSensor01", WeightSensor01);
+    DEBUG_WEIGHT_SENSOR("weightSensor01", weightSensor01);
     DEBUG("\r\n");
 
-    WeightSensor02.device.begin(WeightSensor02.dtPin, WeightSensor02.sckPin);
-    WeightSensor02.device.set_scale(WEIGHT_SENSORS_CALIBRATION_FACTOR);
-    WeightSensor02.device.tare();
+    // WiFi
+    WiFi.mode(WIFI_STA);
+    WiFi.disconnect();
 
-    pinMode(WeightSensor02.led, OUTPUT);
+    delay(150);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    delay(1000);
 
-    DEBUG_WEIGHT_SENSOR("WeightSensor02", WeightSensor02);
-    DEBUG("\r\n");
+    WiFi.onEvent(
+        [](arduino_event_id_t event, arduino_event_info_t info) { WiFi.begin(WIFI_SSID, WIFI_PASSWORD); },
+        ARDUINO_EVENT_WIFI_STA_DISCONNECTED
+    );
+
+    DEBUG_WIFI();
+    DEBUG("\r\n\n");
+
+    // MQTT
+    mqttClient.setServer(MQTT_BROKER_HOST, MQTT_BROKER_PORT);
+    mqttClient.setKeepAlive(MQTT_KEEPALIVE);
+    mqttClient.setCallback(mqttCallback);
+
+    // FreeRTOS tasks
+    initMutexs();
+
+    lockWeightSensors();
+    setWeight(&weightSensor01);
+    unlockWeightSensors();
+
+    xTaskCreatePinnedToCore(xButtonsTask, "Buttons", 2048, NULL, 1, NULL, 1);
+    xTaskCreatePinnedToCore(xWeightSampleTask, "WeightSample", 2048, NULL, 2, NULL, 1);
+    xTaskCreatePinnedToCore(xBuzzerTask, "Alarm", 2048, &buzzer, 2, NULL, 1);
+    xTaskCreatePinnedToCore(xMQTTTask, "MQTT", 4096, NULL, 3, NULL, 1);
+
+    xTaskCreatePinnedToCore(xSystemEventTask, "SystemEvent", 2048, NULL, 4, NULL, 1);
+    xTaskCreatePinnedToCore(xFSMTask, "FSM", 2048, NULL, 4, NULL, 1);
 
     DEBUG("Setup completed.\r\n\n");
 }
 
 void loop() {
-    switchBtnState(&StockBtn);
-    switchBtnState(&SecurityBtn);
-
-    SystemEvent event = getSystemEvent();
-
-    switch (Status) {
-        case VIRGIN_EMBEDDED:
-            switch (event) {
-                case STOCK_ON:
-                    lcdClear(&LCD);
-                    Status = STOCK_MODE;
-                    DEBUG_FSM(VIRGIN_EMBEDDED, event, Status);
-                    break;
-
-                case SECURITY_ON:
-                    lcdPrint(&LCD, "Security mode");
-                    setBaselineWeight(&WeightSensor01);
-                    setBaselineWeight(&WeightSensor02);
-                    Status = SECURITY_MODE;
-                    DEBUG_FSM(VIRGIN_EMBEDDED, event, Status);
-                    break;
-
-                default:
-                    lcdPrint(&LCD, "SOA - Team L5", "S.S. control");
-                    DEBUG_FSM(VIRGIN_EMBEDDED, event, Status);
-                    break;
-            }
-            break;
-
-        case STOCK_MODE:
-            switch (event) {
-                case STOCK_OFF:
-                    ledOff(&WeightSensor01);
-                    ledOff(&WeightSensor02);
-                    lcdClear(&LCD);
-                    Status = VIRGIN_EMBEDDED;
-                    DEBUG_FSM(STOCK_MODE, event, Status);
-                    break;
-
-                case STOCK_MISSING_SENSOR_01:
-                    ledOn(&WeightSensor01);
-                    ledOff(&WeightSensor02);
-                    lcdPrint(&LCD, "Stock missing", "on sensor #01!");
-                    DEBUG_FSM(STOCK_MODE, event, Status);
-                    break;
-
-                case STOCK_MISSING_SENSOR_02:
-                    ledOff(&WeightSensor01);
-                    ledOn(&WeightSensor02);
-                    lcdPrint(&LCD, "Stock missing", "on sensor #02!");
-                    DEBUG_FSM(STOCK_MODE, event, Status);
-                    break;
-
-                case STOCK_MISSING_SENSORS:
-                    ledOn(&WeightSensor01);
-                    ledOn(&WeightSensor02);
-                    lcdPrint(&LCD, "Stock missing", "on all sensors!");
-                    DEBUG_FSM(STOCK_MODE, event, Status);
-                    break;
-
-                case NO_MISSING_STOCK:
-                    ledOff(&WeightSensor01);
-                    ledOff(&WeightSensor02);
-                    lcdPrint(
-                        &LCD,
-                        "Stock #01 = " + String(getStock(&WeightSensor01)),
-                        "Stock #02 = " + String(getStock(&WeightSensor02))
-                    );
-                    DEBUG_FSM(STOCK_MODE, event, Status);
-                    break;
-
-                case SECURITY_ON:
-                    setBaselineWeight(&WeightSensor01);
-                    setBaselineWeight(&WeightSensor02);
-                    ledOff(&WeightSensor01);
-                    ledOff(&WeightSensor02);
-                    lcdPrint(&LCD, "Security mode");
-                    Status = SECURITY_MODE;
-                    DEBUG_FSM(STOCK_MODE, event, Status);
-                    break;
-
-                default:
-                    break;
-            }
-            break;
-
-        case SECURITY_MODE:
-            switch (event) {
-                case SECURITY_OFF:
-                    setBaselineWeight(&WeightSensor01);
-                    setBaselineWeight(&WeightSensor02);
-                    ledOff(&WeightSensor01);
-                    ledOff(&WeightSensor02);
-                    // TODO: Apagar el Buzzer.
-                    lcdClear(&LCD);
-                    Status = VIRGIN_EMBEDDED;
-                    DEBUG_FSM(SECURITY_MODE, event, Status);
-                    break;
-
-                case ANOMALY_SENSOR_01:
-                    ledOn(&WeightSensor01);
-                    // TODO: Reproducir sonido por el Buzzer.
-                    lcdPrint(&LCD, "Security alert", "on sensor #01!");
-                    DEBUG_FSM(SECURITY_MODE, event, Status);
-                    break;
-
-                case ANOMALY_SENSOR_02:
-                    ledOn(&WeightSensor02);
-                    // TODO: Reproducir sonido por el Buzzer.
-                    lcdPrint(&LCD, "Security alert", "on sensor #02!");
-                    DEBUG_FSM(SECURITY_MODE, event, Status);
-                    break;
-
-                case ANOMALY_SENSORS:
-                    ledOn(&WeightSensor01);
-                    ledOn(&WeightSensor02);
-                    // TODO: Reproducir sonido por el Buzzer.
-                    lcdPrint(&LCD, "Security alert", "on all sensors!");
-                    DEBUG_FSM(SECURITY_MODE, event, Status);
-                    break;
-
-                default:
-                    break;
-            }
-            break;
-
-        default:
-            break;
-    }
+    //
 }

@@ -1,22 +1,22 @@
 
-#include <LiquidCrystal_I2C.h>
+#include <rgb_lcd.h>
 
 #include "constants.h"
 #include "pins.h"
 
-Button StockBtn = {
+Button stockBtn = {
     .pin = STOCK_BUTTON_PIN,
-    .led = STOCK_LED_PIN,
-    .debounceDelay = BUTTONS_DEBOUNCE_DELAY,
+    .ledPin = STOCK_LED_PIN,
+    .debounceDelay = 25,
 };
 
-Button SecurityBtn = {
+Button securityBtn = {
     .pin = SECURITY_BUTTON_PIN,
-    .led = SECURITY_LED_PIN,
-    .debounceDelay = BUTTONS_DEBOUNCE_DELAY,
+    .ledPin = SECURITY_LED_PIN,
+    .debounceDelay = 25,
 };
 
-LiquidCrystal_I2C lcdDevice(0x27, LCD_COLS, LCD_ROWS);
+rgb_lcd lcdDevice;
 
 LCD16x2 LCD = {
     .device = &lcdDevice,
@@ -24,24 +24,34 @@ LCD16x2 LCD = {
     .line02 = "",
 };
 
-WeightSensor WeightSensor01 = {
-    .dtPin = WEIGHT_SENSOR_01_DT_PIN,
-    .sckPin = WEIGHT_SENSOR_01_SCK_PIN,
-    .led = WEIGHT_SENSOR_01_LED_PIN,
-    .product = {
-        .name = WEIGHT_SENSOR_01_PRODUCT_NAME,
-        .weight = WEIGHT_SENSOR_01_PRODUCT_WEIGHT,
-    },
-    .minimumAcceptableStock = WEIGHT_SENSOR_01_MINIMUM_ACCEPTABLE_STOCK,
+const BuzzerStep buzzerSteps[] = {
+    { .frequency = 700, .duration = 500 },
+    { .frequency = 560, .duration = 500 },
+    { .frequency = 700, .duration = 500 },
+    { .frequency = 560, .duration = 500 },
 };
 
-WeightSensor WeightSensor02 = {
-    .dtPin = WEIGHT_SENSOR_02_DT_PIN,
-    .sckPin = WEIGHT_SENSOR_02_SCK_PIN,
-    .led = WEIGHT_SENSOR_02_LED_PIN,
+Buzzer buzzer = {
+    .pin = BUZZER_PIN,
+    .steps = buzzerSteps,
+    .stepsLength = sizeof(buzzerSteps) / sizeof(buzzerSteps[0]),
+    .muted = false,
+    .playing = false,
+};
+
+WeightSensor weightSensor01 = {
+    .id = WEIGHT_SENSOR_ID,
+    .dtPin = WEIGHT_SENSOR_DT_PIN,
+    .sckPin = WEIGHT_SENSOR_SCK_PIN,
+    .ledPin = WEIGHT_SENSOR_LED_PIN,
     .product = {
-        .name = WEIGHT_SENSOR_02_PRODUCT_NAME,
-        .weight = WEIGHT_SENSOR_02_PRODUCT_WEIGHT,
+        .name = WEIGHT_SENSOR_PRODUCT_NAME,
+        .weight = WEIGHT_SENSOR_PRODUCT_WEIGHT,
+        .minimumAcceptableStock = WEIGHT_SENSOR_MINIMUM_ACCEPTABLE_STOCK,
     },
-    .minimumAcceptableStock = WEIGHT_SENSOR_02_MINIMUM_ACCEPTABLE_STOCK,
+    .sample = {
+        .weight = 0,
+        .isValid = false,
+    },
+    .anomaly = false,
 };
