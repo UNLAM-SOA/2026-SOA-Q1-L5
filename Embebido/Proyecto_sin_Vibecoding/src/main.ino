@@ -3,33 +3,23 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 
-// Defines (ESP32 pin's designations, structs, etc.)
 #include "enums.h"
 #include "pins.h"
 #include "structs.h"
 
-// Constants (global constants, structs, etc.)
 #include "constants.h"
 
-// User functions (utilities for sensors and actuators)
 #include "user_functions.h"
 
-// FreeRTOS tasks
 #include "sync.h"
 #include "tasks.h"
 
-// MQTT integration
 #include "mqtt.h"
 
-// Event capture functions
 #include "event_captures.h"
 
-// Debugging utilities
 #include "debuggers.h"
 
-/**
- * @brief Main system status variable, representing the current state of the embedded system FSM.
- */
 SystemStatus systemStatus = VIRGIN_EMBEDDED;
 
 const QueueHandle_t xSystemEventsQueue = xQueueCreate(10, sizeof(unsigned long));
@@ -165,7 +155,6 @@ void setup() {
 
     DEBUG("\r\nStarting setup...\r\n\n");
 
-    // Stock button
     pinMode(stockBtn.pin, INPUT);
     pinMode(stockBtn.ledPin, OUTPUT);
     digitalWrite(stockBtn.ledPin, LOW);
@@ -178,7 +167,6 @@ void setup() {
     DEBUG_BUTTON("stockBtn", stockBtn);
     DEBUG("\r\n");
 
-    // Security button
     pinMode(securityBtn.pin, INPUT);
     pinMode(securityBtn.ledPin, OUTPUT);
     digitalWrite(securityBtn.ledPin, LOW);
@@ -191,14 +179,11 @@ void setup() {
     DEBUG_BUTTON("securityBtn", securityBtn);
     DEBUG("\r\n");
 
-    // LCD
     LCD.device->begin(LCD_COLS, LCD_ROWS);
     LCD.device->setRGB(255, 255, 255);
 
-    // Alarm
     pinMode(buzzer.pin, OUTPUT);
 
-    // Weight sensor
     weightSensor01.device.begin(weightSensor01.dtPin, weightSensor01.sckPin);
     weightSensor01.device.set_scale(WEIGHT_SENSORS_CALIBRATION_FACTOR);
 
@@ -208,7 +193,6 @@ void setup() {
     DEBUG_WEIGHT_SENSOR("weightSensor01", weightSensor01);
     DEBUG("\r\n");
 
-    // WiFi
     WiFi.mode(WIFI_STA);
     WiFi.disconnect();
 
@@ -224,12 +208,10 @@ void setup() {
     DEBUG_WIFI();
     DEBUG("\r\n\n");
 
-    // MQTT
     mqttClient.setServer(MQTT_BROKER_HOST, MQTT_BROKER_PORT);
     mqttClient.setKeepAlive(MQTT_KEEPALIVE);
     mqttClient.setCallback(mqttCallback);
 
-    // FreeRTOS tasks
     initMutexs();
 
     lockWeightSensors();
@@ -248,5 +230,4 @@ void setup() {
 }
 
 void loop() {
-    //
 }

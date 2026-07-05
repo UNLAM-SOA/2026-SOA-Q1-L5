@@ -122,7 +122,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 
     DEBUG("Message payload: \"%s\".\r\n", json.as<String>().c_str());
 
-    // Switch stock mode
     if (strcmp(type, "stock") == 0) {
         const ButtonStatus status = buttonStatusToEnum(json["status"] | "");
         if (status == ButtonStatus::UNKNOWN_BUTTON_STATUS) return;
@@ -134,7 +133,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         return;
     };
 
-    // Switch security mode
     if (strcmp(type, "security") == 0) {
         const ButtonStatus status = buttonStatusToEnum(json["status"] | "");
         if (status == ButtonStatus::UNKNOWN_BUTTON_STATUS) return;
@@ -146,7 +144,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
         return;
     };
 
-    // Activate/Deactivate the buzzer
     if (strcmp(type, "security/alarm") == 0) {
         const AlarmStatus status = alarmStatusToEnum(json["status"] | "");
         if (status == AlarmStatus::UNKNOWN_ALARM_STATUS) return;
@@ -162,7 +159,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
     const char* shelfID = type;
     type = pipe + 1;
 
-    // Tare shelf
     if (strcmp(type, "tare") == 0) {
         if (strcmp(shelfID, weightSensor01.id.c_str()) == 0) {
             if (json["offset"].is<JsonVariant>()) {

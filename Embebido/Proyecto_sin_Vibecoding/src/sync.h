@@ -15,4 +15,4 @@ void unlockBuzzer();
 void lockWeightSensors();
 void unlockWeightSensors();
 
-#endif  // SYNC_H_INCLUDED
+#endif

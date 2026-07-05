@@ -11,16 +11,8 @@
 #define WEIGHT_SENSOR_PRODUCT_WEIGHT           1000
 #define WEIGHT_SENSOR_MINIMUM_ACCEPTABLE_STOCK 1
 
-/**
- * @brief Calibration factor for the weight sensors.
- *
- * Current value represents the grams per unit of the raw sensor reading in Wokwi simulator.
- */
 #define WEIGHT_SENSORS_CALIBRATION_FACTOR 0.42
 
-/**
- * @brief Difference (in grams) above which a weight delta from the baseline is considered an anomaly in Security mode.
- */
 #define ANOMALY_THRESHOLD 200
 
 extern Button stockBtn;
@@ -34,4 +26,4 @@ extern WeightSensor weightSensor01;
 
 extern SystemStatus systemStatus;
 
-#endif  // CONSTANTS_H_INCLUDED
+#endif

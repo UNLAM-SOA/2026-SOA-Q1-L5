@@ -51,7 +51,7 @@ Mosquitto is a message broker that implements the MQTT protocol, allowing device
 
 ```jsonc
 {
-  "status": "online" // "online" | "offline"
+  "status": "online",
 }
 ```
 
@@ -62,7 +62,7 @@ Mosquitto is a message broker that implements the MQTT protocol, allowing device
 
 ```jsonc
 {
-  "status": "VIRGIN_EMBEDDED" // "VIRGIN_EMBEDDED" | "STOCK_MODE" | "SECURITY_MODE" | "UNKNOWN_SYSTEM_STATUS"
+  "status": "VIRGIN_EMBEDDED",
 }
 ```
 
@@ -73,8 +73,8 @@ Mosquitto is a message broker that implements the MQTT protocol, allowing device
 
 ```jsonc
 {
-  "muted": false, // boolean
-  "playing": false // boolean
+  "muted": false,
+  "playing": false,
 }
 ```
 
@@ -85,11 +85,11 @@ Mosquitto is a message broker that implements the MQTT protocol, allowing device
 
 ```jsonc
 {
-  "name": "Apples", // String
-  "weight": 1000, // int - Current weight (in grams)
-  "weightPerUnit": 0, // int - Weight of a single unit (in grams)
-  "stock": 0, // int - Current stock
-  "minimumAcceptableStock": 1 // int - Minimum stock threshold
+  "name": "Apples",
+  "weight": 1000,
+  "weightPerUnit": 0,
+  "stock": 0,
+  "minimumAcceptableStock": 1,
 }
 ```
 
@@ -100,9 +100,9 @@ Mosquitto is a message broker that implements the MQTT protocol, allowing device
 
 ```jsonc
 {
-  "weight": 0, // int - Current weight (in grams)
-  "anomaly": false, // boolean - `true` = anomaly detected, `false` = no anomaly
-  "baselineWeight": 0 // int - Reference weight (in grams)
+  "weight": 0,
+  "anomaly": false,
+  "baselineWeight": 0,
 }
 ```
 
@@ -122,7 +122,7 @@ Mosquitto is a message broker that implements the MQTT protocol, allowing device
 
 ```jsonc
 {
-  "offset": 0 // int - Tare offset (in grams)
+  "offset": 0,
 }
 ```
 
@@ -146,7 +146,7 @@ Mosquitto is a message broker that implements the MQTT protocol, allowing device
 
 ```jsonc
 {
-  "status": "ON" // "ON" | "OFF"
+  "status": "ON",
 }
 ```
 
@@ -157,7 +157,7 @@ Mosquitto is a message broker that implements the MQTT protocol, allowing device
 
 ```jsonc
 {
-  "status": "ON" // "ON" | "OFF"
+  "status": "ON",
 }
 ```
 
@@ -168,7 +168,7 @@ Mosquitto is a message broker that implements the MQTT protocol, allowing device
 
 ```jsonc
 {
-  "status": "MUTE" // "MUTE" | "UNMUTE"
+  "status": "MUTE",
 }
 ```
 
@@ -179,8 +179,8 @@ Mosquitto is a message broker that implements the MQTT protocol, allowing device
 
 ```jsonc
 {
-  "offset": 0, // int - Tare offset (in grams)
-  "lastUpdate": 0 // int - Timestamp of the last update (in milliseconds elapsed since midnight, January 1, 1970 Universal Coordinated Time [UTC])
+  "offset": 0,
+  "lastUpdate": 0,
 }
 ```
 
@@ -212,15 +212,15 @@ Node-RED is a flow-based development tool for visual programming, used to connec
 ```jsonc
 {
   "health": {
-    "status": "online"
+    "status": "online",
   },
   "lastUpdate": 1782670749047,
   "system": {
-    "status": "VIRGIN_EMBEDDED"
+    "status": "VIRGIN_EMBEDDED",
   },
   "alarm": {
     "muted": false,
-    "playing": false
+    "playing": false,
   },
   "shelves": {
     "shelf-01": {
@@ -229,19 +229,19 @@ Node-RED is a flow-based development tool for visual programming, used to connec
         "weight": 0,
         "weightPerUnit": 1000,
         "stock": 0,
-        "minimumAcceptableStock": 1
+        "minimumAcceptableStock": 1,
       },
       "security": {
         "weight": 0,
         "anomaly": false,
-        "baselineWeight": 0
+        "baselineWeight": 0,
       },
       "tare": {
         "offset": 0,
-        "lastUpdate": 1782670724391
-      }
-    }
-  }
+        "lastUpdate": 1782670724391,
+      },
+    },
+  },
 }
 ```
 
@@ -254,7 +254,7 @@ Node-RED is a flow-based development tool for visual programming, used to connec
 
 ```jsonc
 {
-  "status": "ON" // "ON" | "OFF"
+  "status": "ON",
 }
 ```
 
@@ -265,7 +265,7 @@ Node-RED is a flow-based development tool for visual programming, used to connec
 
 ```jsonc
 {
-  "status": "ON" // "ON" | "OFF"
+  "status": "ON",
 }
 ```
 
@@ -276,7 +276,7 @@ Node-RED is a flow-based development tool for visual programming, used to connec
 
 ```jsonc
 {
-  "status": "MUTE" // "MUTE" | "UNMUTE"
+  "status": "MUTE",
 }
 ```
 

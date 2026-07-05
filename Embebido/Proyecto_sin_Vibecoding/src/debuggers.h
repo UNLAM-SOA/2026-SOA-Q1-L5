@@ -7,25 +7,10 @@
 
 #if DEBUG_MODE
 
-/**
- * @brief Prints a formatted debug message to the serial monitor.
- * @param message The format string.
- * @param ... Optional arguments to format into the message.
- */
 #define DEBUG(message, ...) Serial.printf(message, ##__VA_ARGS__);
 
-/**
- * @brief Prints a signal value (e.g. `Button.state`) as `HIGH`, or `LOW`.
- * @param signal The signal value.
- * @param printMethod The method to use for printing (e.g. `Serial.println`).
- */
 #define DEBUG_SIGNAL(signal, printMethod) printMethod(signal ? "HIGH" : "LOW");
 
-/**
- * @brief Prints each field of a `Button` to the serial monitor.
- * @param name The name of the button (e.g. "button1") to prefix each field with.
- * @param button The `Button` instance.
- */
 #define DEBUG_BUTTON(name, button)                                            \
     Serial.printf("%s.pin = %u\r\n", name, button.pin);                       \
     Serial.printf("%s.ledPin = %u\r\n", name, button.ledPin);                 \
@@ -37,11 +22,6 @@
     Serial.printf("%s.debounceDelay = %ums\r\n", name, button.debounceDelay); \
     Serial.printf("%s.lastDebounceTime = %ums\r\n", name, button.lastDebounceTime);
 
-/**
- * @brief Prints each field of a `WeightSensor` to the serial monitor.
- * @param name The name of the weight sensor (e.g. "weightSensor01") to prefix each field with.
- * @param sensor The `WeightSensor` instance.
- */
 #define DEBUG_WEIGHT_SENSOR(name, sensor)                     \
     Serial.printf("%s.id = %s\r\n", name, sensor.id.c_str()); \
     Serial.printf("%s.device = %p\r\n", name, sensor.device); \
@@ -49,9 +29,6 @@
     Serial.printf("%s.sckPin = %u\r\n", name, sensor.sckPin); \
     Serial.printf("%s.ledPin = %u\r\n", name, sensor.ledPin);
 
-/**
- * @brief
- */
 #define DEBUG_WIFI()                                                                        \
     if (WiFi.status() == WL_CONNECTED) {                                                    \
         Serial.printf("WiFi connected (local IP: %s).", WiFi.localIP().toString().c_str()); \
@@ -59,11 +36,6 @@
         Serial.println("WiFi not connected.");                                              \
     }
 
-/**
- * @brief Prints a `SystemStatus` value.
- * @param status The `SystemStatus` value.
- * @param printMethod The method to use for printing (e.g. `Serial.println`).
- */
 #define DEBUG_SYSTEM_STATUS(status, printMethod)  \
     switch (status) {                             \
         case SystemStatus::VIRGIN_EMBEDDED:       \
@@ -82,11 +54,6 @@
             printMethod("UNKNOWN_SYSTEM_STATUS"); \
     }
 
-/**
- * @brief Prints a `SystemEvent` value.
- * @param event The `SystemEvent` value.
- * @param printMethod The method to use for printing (e.g. `Serial.println`).
- */
 #define DEBUG_SYSTEM_EVENT(event, printMethod)         \
     switch (event) {                                   \
         case SystemEvent::STOCK_ON:                    \
@@ -125,12 +92,6 @@
             printMethod("UNKNOWN_SYSTEM_EVENT   ");    \
     }
 
-/**
- * @brief Prints a FSM transition as `<systemStatus> <event> --> <nextSystemStatus>`.
- * @param status The current `SystemStatus` value.
- * @param event The `SystemEvent` value that triggers the transition.
- * @param nextStatus The next `SystemStatus` value after the transition.
- */
 #define DEBUG_FSM(status, event, nextStatus)   \
     DEBUG_SYSTEM_STATUS(status, Serial.print); \
     DEBUG_SYSTEM_EVENT(event, Serial.print);   \
@@ -148,5 +109,5 @@
 #define DEBUG_SYSTEM_EVENT(event, printMethod)   ;
 #define DEBUG_FSM(status, event, nextStatus)     ;
 
-#endif  // DEBUG_MODE
-#endif  // DEBUGGERS_H_INCLUDED
+#endif
+#endif

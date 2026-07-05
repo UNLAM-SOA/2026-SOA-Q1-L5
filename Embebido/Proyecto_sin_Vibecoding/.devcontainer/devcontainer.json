@@ -4,12 +4,12 @@
     "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
     "features": {
         "ghcr.io/devcontainers/features/node:1": {
-            "version": "24", // Equivalent to the latest version of Node.js v24.x.x.
+            "version": "24",
             "pnpmVersion": "latest"
         },
         "ghcr.io/devcontainer-community/devcontainer-features/clang-format:1": {},
         "ghcr.io/devcontainers/features/docker-in-docker:2": {
-            "version": "latest", // To match the host's Docker version.
+            "version": "latest",
             "dockerDashComposeVersion": "v2"
         }
     },

@@ -13,4 +13,4 @@
 #define WEIGHT_SENSOR_SCK_PIN 12
 #define WEIGHT_SENSOR_LED_PIN 14
 
-#endif  // PINS_H_INCLUDED
+#endif
