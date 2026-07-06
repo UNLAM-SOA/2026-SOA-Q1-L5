@@ -7,14 +7,17 @@ public class StateManager {
     public static final String ESTADO_STOCK = "STOCK";
     public static final String ESTADO_SEGURIDAD = "SECURITY";
 
-    private static String estadoActual = ESTADO_VIRGEN;   // = status.active (modo efectivo, con prioridad)
-    private static boolean stockOn = false;               // = status.stock  (toggle activado por el usuario)
-    private static boolean securityOn = false;            // = status.security
+    private static String estadoActual = ESTADO_VIRGEN;
+    private static boolean stockOn = false;
+    private static boolean securityOn = false;
+    private static boolean buzzerMuted = false;
     private static String availability = "offline";
     private static long lastUpdated = 0;
     
     public static class ShelfData {
+        public String name = "";
         public double weight = 0;
+        public double weightPerUnit = 0;
         public int stock = 0;
         public int min = 0;
         public boolean available = false;
@@ -24,36 +27,50 @@ public class StateManager {
         public double delta = 0;
     }
 
-    private static ShelfData shelf01 = new ShelfData();
-    private static ShelfData shelf02 = new ShelfData();
-
-    public static String getEstadoActual() { return estadoActual; }   // modo que corre por prioridad
+    private static final ShelfData shelf01 = new ShelfData();
+    public static String getEstadoActual() { return estadoActual; }
     public static boolean isStockOn() { return stockOn; }
     public static boolean isSecurityOn() { return securityOn; }
+    public static boolean isBuzzerMuted() { return buzzerMuted; }
     public static String getAvailability() { return availability; }
     public static long getLastUpdated() { return lastUpdated; }
     public static ShelfData getShelf01() { return shelf01; }
-    public static ShelfData getShelf02() { return shelf02; }
 
     public static void updateFromBackend(JSONObject state) {
-        // Parseo defensivo: el ESP32 publica on-change, asi que los estados parciales
-        // (ej. stock sin security todavia) son normales. Si falta una seccion se
-        // conserva el valor previo en vez de abortar toda la actualizacion.
-        availability = state.optString("availability", availability);
-        lastUpdated = state.optLong("updatedAt", lastUpdated);
+        lastUpdated = state.optLong("lastUpdate", lastUpdated);
 
-        JSONObject status = state.optJSONObject("status");
-        if (status != null) {
-            estadoActual = status.optString("active", estadoActual);   // modo efectivo (prioridad)
-            stockOn = status.optBoolean("stock", stockOn);             // toggles independientes
-            securityOn = status.optBoolean("security", securityOn);
+        JSONObject health = state.optJSONObject("health");
+        if(health != null) availability = health.optString("status", availability);
+
+        JSONObject alarm = state.optJSONObject("alarm");
+        if (alarm != null) {
+            buzzerMuted = alarm.optBoolean("muted", buzzerMuted);
         }
 
-        JSONObject shelf = state.optJSONObject("shelf");
-        if (shelf != null) {
-            if (shelf.has("01")) updateShelf(shelf01, shelf.optJSONObject("01"));
-            if (shelf.has("02")) updateShelf(shelf02, shelf.optJSONObject("02"));
+        JSONObject system = state.optJSONObject("system");
+        if (system != null) {
+            stockOn = system.optBoolean("stock", stockOn);
+            securityOn = system.optBoolean("security", securityOn);
+
+            String sysStatus = system.optString("status", "");
+            if (sysStatus.equals("SECURITY_MODE")) {
+                estadoActual = ESTADO_SEGURIDAD;
+                securityOn = true;
+            } else if (sysStatus.equals("STOCK_MODE")) {
+                estadoActual = ESTADO_STOCK;
+                stockOn = true;
+                // Si el status es STOCK_MODE, es que Seguridad no está corriendo
+                securityOn = false;
+            } else if (sysStatus.equals("VIRGIN_EMBEDDED")) {
+                estadoActual = ESTADO_VIRGEN;
+                stockOn = false;
+                securityOn = false;
+            }
         }
+
+        JSONObject shelves = state.optJSONObject("shelves");
+        if(shelves != null) updateShelf(shelf01, shelves.optJSONObject("shelf-01"));
+
     }
 
     private static void updateShelf(ShelfData data, JSONObject json) {
@@ -61,21 +78,24 @@ public class StateManager {
 
         JSONObject stock = json.optJSONObject("stock");
         if (stock != null) {
+            data.name = stock.optString("name", data.name);
             data.weight = stock.optDouble("weight", data.weight);
+            data.weightPerUnit = stock.optDouble("weightPerUnit", data.weightPerUnit);
             data.stock = stock.optInt("stock", data.stock);
-            data.min = stock.optInt("min", data.min);
-            data.available = stock.optBoolean("available", data.available);
+            data.min = stock.optInt("minimumAcceptableStock", data.min);
+            data.available = data.stock >= data.min;
         }
 
         JSONObject security = json.optJSONObject("security");
         if (security != null) {
-            data.secure = security.optBoolean("secure", data.secure);
-            data.baseline = security.optDouble("baseline", data.baseline);
-            data.current = security.optDouble("current", data.current);
-            data.delta = security.optDouble("delta", data.delta);
+            boolean anomaly = security.optBoolean("anomaly", !data.secure);
+            data.secure = !anomaly;
+            data.baseline = security.optDouble("baselineWeight", data.baseline);
+            data.current = security.optDouble("weight", data.current);
+            data.delta = Math.abs(data.current - data.baseline);
         }
     }
     
-    // Legacy support
-    public static void setEstadoActual(String estado) { estadoActual = estado; }
+    public static void setStockOn(boolean on) { stockOn = on; }
+    public static void setSecurityOn(boolean on) { securityOn = on; }
 }
